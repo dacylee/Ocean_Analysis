@@ -1,0 +1,65 @@
+### 연도별 데이터 합치고 변수명 통일
+data <- rbind(data_2009, data_2010, data_2011, data_2012, data_2013, data_2014, data_2015, data_2016, data_2017, data_2018, data_2019, data_2020, data_2021)
+names(data) <- c('date', 't' , 'c', 'con01', 'tmp01', 'dpt01', 'con02', 'tmp02', 'dpt02', 'con03', 'tmp03', 'dpt03', 'con04', 'tmp04', 'dpt04', 'con05', 'tmp05', 'dpt05','con06', 'tmp06', 'dpt06')
+data$date <- as.POSIXct(data$date, format = "%Y-%m-%d %H:%M")
+
+### 1차 데이터 전처리: 정상 범주만 필터링
+# 1. CONDUCTIVITY (전기 전도도)
+filtered_data_con <- data %>% 
+  mutate(across(starts_with('con'), ~ifelse(. < 30 | . > 50, NA, .))) %>% 
+  rowwise() %>% 
+  mutate(count_non_na = sum(!is.na(c_across(starts_with('con')))))
+
+# 2. TEMPERATURE (수온)
+filtered_data_tmp <- filtered_data_con %>% 
+  mutate(across(starts_with('tmp'), ~ifelse(. < -2.9 | . > 30, NA, .))) %>% 
+  rowwise() %>% 
+  mutate(count_non_na = sum(!is.na(c_across(starts_with('tmp')))))
+
+# 3. DEPTH (수심)
+# dpt의 경우 정상 범위를 구하는 게 매년 변동이 어떻게 있었을지 몰라 모호했음.
+# 0이하, 300 이상인 값은 삭제 - 이렇게 최소 최대 값만 삭제하고 시각화 해서
+# 눈으로 보면서 각각의 범위 정해 주었음.
+
+# filtered_data_tmp2 <- filtered_data_tmp %>% 
+#  mutate(across(starts_with('dpt'), ~ifelse(. <= 0 | . >= 200, NA, .))) %>% 
+#  rowwise() %>% 
+#  mutate(count_non_na = sum(!is.na(c_across(starts_with('dpt')))))
+
+# 데이터를 tidy 형태로 변환
+# data_long <- filtered_data_tmp2 %>%
+#  pivot_longer(cols = starts_with("dpt"), names_to = "depth", values_to = 
+# "dpt_value")
+
+# 시계열 그래프 그리기
+# ggplot(data_long, aes(x = date, y = dpt_value, group = depth, color = depth)) +
+#  geom_line() +
+#  xlab("Date") +
+#  ylab("Depth Value") +
+#  ggtitle("Time Series of Depth Values") +
+#  facet_wrap(~depth, scales = "fixed", nrow = 2) +
+#  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+filtered_data <- filtered_data_tmp %>%
+  mutate(
+    dpt01 = ifelse(!between(dpt01, 10, 75), NA, dpt01),
+    dpt02 = ifelse(!between(dpt02, 25, 100), NA, dpt02),
+    dpt03 = ifelse(!between(dpt03, 25, 100), NA, dpt03),
+    dpt04 = ifelse(!between(dpt04, 50, 200), NA, dpt04),
+    dpt05 = ifelse(!between(dpt05, 60, 200), NA, dpt05),
+    dpt06 = ifelse(!between(dpt06, 100, 200), NA, dpt06)
+  )
+
+# 4. 표층 수온(t) & 전기 전도도(c)
+filtered_data$t[filtered_data$t <= -3 | filtered_data$t >= 40] <- NA
+filtered_data$c <- filtered_data$c * 10
+filtered_data$c[filtered_data$c <= 29 | filtered_data$c >= 60] <- NA
+
+# 5. SALINITY (염분)
+filtered_data$sal00 <- swSCTp(filtered_data$c, filtered_data$t, conductivityUnit = "mS/cm") 
+filtered_data$sal01 <- swSCTp(filtered_data$con01, filtered_data$tmp01, conductivityUnit = "mS/cm")
+filtered_data$sal02 <- swSCTp(filtered_data$con02, filtered_data$tmp02, conductivityUnit = "mS/cm")
+filtered_data$sal03 <- swSCTp(filtered_data$con03, filtered_data$tmp03, conductivityUnit = "mS/cm")
+filtered_data$sal04 <- swSCTp(filtered_data$con04, filtered_data$tmp04, conductivityUnit = "mS/cm")
+filtered_data$sal05 <- swSCTp(filtered_data$con05, filtered_data$tmp05, conductivityUnit = "mS/cm")
+filtered_data$sal06 <- swSCTp(filtered_data$con06, filtered_data$tmp06, conductivityUnit = "mS/cm")
