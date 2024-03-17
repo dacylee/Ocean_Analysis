@@ -1,0 +1,26 @@
+filtered2_data <- filtered_data
+
+# filtered_data의 첫 번째 열(date)을 제외한 각 열을 순회하며 이동 중앙값 계산 및 이상치 처리
+for (col_name in colnames(filtered2_data)[-1]) {
+  # 해당 열의 데이터를 추출하고 NA 제거
+  col_data <- filtered2_data[[col_name]] %>% na.omit()
+  
+  # 현재 열에 대해 중앙값 계산
+  med_val <- stats::runmed(col_data, k = window_size, endrule = 'median')
+  
+  # 임곗값 설정 (필요에 따라 조정)
+  threshold <- 10
+  
+  # 임곗값을 기반으로 이상치 탐지
+  outliers <- col_data[col_data > med_val + threshold | col_data < med_val - threshold]
+  
+  # 원본 데이터에서 이상치의 인덱스 찾기
+  outlier_indices <- which(filtered2_data[[col_name]] %in% outliers)
+  
+  # filtered2_data의 해당하는 행을 NA로 대체
+  filtered2_data[outlier_indices, col_name] <- NA
+}
+
+colSums(is.na(filtered2_data)) - colSums(is.na(filtered_data))
+
+filtered2_data <- filtered2_data %>% select(-count_non_na)
