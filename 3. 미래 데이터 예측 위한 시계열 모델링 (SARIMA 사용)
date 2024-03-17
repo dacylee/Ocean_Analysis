@@ -1,0 +1,79 @@
+# 첫 번째 열(date) 제외
+column_names <- colnames(filtered2_data)[-1]
+
+dataframes_list <- list()
+
+# 각 열을 date와 함께 개별 데이터프레임으로 분리
+for (col_name in column_names) {
+  df <- data.frame(date = filtered2_data$date, value = filtered2_data[[col_name]])
+  dataframes_list[[col_name]] <- df
+}
+
+# 개별 데이터프레임에 na.omit 적용
+for (col_name in column_names) {
+  df <- dataframes_list[[col_name]]
+  df <- na.omit(df)
+  dataframes_list[[col_name]] <- df
+}
+
+# 새로운 데이터프레임 목록 생성
+aggregated_data_list <- list()
+
+# 개 데이터프레임에서 연도와 월 정보를 추출하고 중앙값 계산
+for (col_name in column_names) {
+  df <- dataframes_list[[col_name]]
+  
+  # 연도 및 월 정보 추출
+  df$date <- as.POSIXct(df$date, tz = "UTC")
+  df$year <- format(df$date, "%Y")
+  df$month <- format(df$date, "%m")
+  
+  # 중앙값 계산
+  aggregated_data <- df %>%
+    group_by(year, month) %>%
+    summarise(median_value = median(value, na.rm = TRUE))
+  
+  # 결과를 새로운 데이터프레임 목록에 저장
+  aggregated_data_list[[col_name]] <- aggregated_data
+}
+
+# 결과를 저장할 리스트 생성
+ts_data_list <- list()
+
+# 각 개별 데이터프레임에 대해 처리
+for (col_name in names(aggregated_data_list)) {
+  df <- aggregated_data_list[[col_name]]
+  
+  # 'ts' 객체로 변환
+  ts_data <- ts(df$median_value, start = c(2009, 02), end = c(2021,12), frequency = 12)
+  
+  # 결과를 리스트에 저장
+  ts_data_list[[col_name]] <- ts_data
+}
+
+# ARIMA 모델과 예측 결과를 저장할 리스트 생성
+arima_models <- list()
+forecast_results <- list()
+
+# ts_data_list의 각 시계열에 대해 반복
+for (col_name in names(ts_data_list)) {
+  ts_data <- ts_data_list[[col_name]]
+  
+  # 시계열에 auto.arima 적용
+  arima_model <- auto.arima(ts_data)
+  
+  # ARIMA 모델 저장
+  arima_models[[col_name]] <- arima_model
+  
+  # 예측 수행 (예: 다음 24 기간)
+  forecast_values <- forecast(arima_model, h = 24)
+  
+  # 예측 결과 저장
+  forecast_results[[col_name]] <- forecast_values
+  
+  # 사용자 정의 x축 레이블과 함께 예측 시각화
+  plot(forecast_values, main = paste("Forecast for", col_name), xaxt = "n")  # x축 비활성화
+  
+  # x축 레이블 사용자 정의
+  axis(1, at = seq(from = 2009, to = 2023, by = 1), labels = TRUE)
+}
